@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta content='img.jpg' property='og:image'/>  
+  <title>YouTube Music Project</title>
+
+  <style>
+    /* 기본 스타일 */
+    html, body {
+      font-family: 'Pretendard', Arial, sans-serif;
+      background: #f8f9fb;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* 상단 메뉴 */
+    .nav {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      padding: 15px 0;
+      background: #ffffff;
+      border-bottom: 1px solid #ddd;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .nav a {
+      text-decoration: none;
+      padding: 8px 18px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #666;
+      background: #f1f1f1;
+      transition: 0.3s;
+    }
+
+    .nav a.active {
+      background: #4a7cff;
+      color: #fff;
+    }
+
+    /* 플레이어 영역 */
+    .player-box {
+      max-width: 720px;
+      width: 95%;
+      margin: 20px auto;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    .player-ratio {
+      position: relative;
+      width: 100%;
+      padding-top: 56.25%; /* 16:9 비율 */
+      background: #000;
+    }
+
+    #player {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 플레이리스트 테이블 */
+    table {
+      max-width: 720px;
+      width: 95%;
+      margin: 10px auto 20px;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    td {
+      position: relative;
+      padding: 12px 15px 12px 40px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+      line-height: 1.4;
+      color: #333;
+      font-size: 15px;
+    }
+
+    tr:hover td {
+      background: #f9f9f9;
+    }
+
+    tr.active td {
+      background: #f4f8ff;
+      font-weight: bold;
+      color: #4a7cff;
+    }
+
+    tr.active td::before {
+      content: "▶";
+      position: absolute;
+      left: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #4a7cff;
+    }
+
+    /* 하단 컨트롤러 */
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-bottom: 50px;
+    }
+
+    .controls button {
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      border: 1px solid #ddd;
+      background: #fff;
+      border-radius: 30px;
+      transition: 0.2s;
+    }
+
+    .controls button:hover {
+      background: #f1f1f1;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="nav">
+  <a href="?cat=old" id="nav-old">OLD</a>
+  <a href="?cat=enka" id="nav-enka">ENKA</a>
+  <a href="?cat=jazz" id="nav-jazz">JAZZ</a>
+</div>
+
+<div class="player-box">
+  <div class="player-ratio">
+    <div id="player"></div>
+  </div>
+</div>
+
+<table id="playlist"></table>
+
+<div class="controls">
+  <button id="btnPrev">⏮ 이전</button>
+  <button id="btnPlayPause">▶ 재생</button>
+  <button id="btnNext">⏭ 다음</button>
+</div>
+
+<script>
+/* 1. 데이터 정의 */
+const playlists = {
+  old: [
+    { title: "🎵 난 정말 몰랐었네", id: "_Bi1x8uPBJs" },
+    { title: "🎵 돌아가는 삼각지", id: "-XKJVwg3XXg" }
+  ],
+  enka: [
+    { title: "🎵 린 - 인생외길", id: "rfjffhNxdLQ" },
+    { title: "🎵 都はるみ 裏町ごころ", id: "vnHDs5DlAG0" },
+    { title: "🎵 린 X 아즈마 아키", id: "vgPvhr7ZWbw" },
+    { title: "🎵 雪中花 伍代夏子", id: "B6WmSUodgRQ" }
+  ],
+  jazz: [
+    { title: "🎷 번지없는 주막", id: "Z9vzsUxvsEg" },
+    { title: "🎷 고향아줌마", id: "6wvUMP1ZS7U" }
+  ]
+};
+
+/* 2. 현재 카테고리 파악 (URL의 ?cat= 부분 읽기) */
+function getCategory() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("cat") || "old"; // 기본값 old
+}
+
+const currentCategory = getCategory();
+const currentListData = playlists[currentCategory] || playlists["old"];
+
+/* 3. 메뉴 활성화 표시 */
+const activeNav = document.getElementById("nav-" + currentCategory);
+if (activeNav) activeNav.classList.add("active");
+
+/* 4. 플레이리스트 화면 생성 */
+let videoIds = [];
+let currentIndex = 0;
+const table = document.getElementById("playlist");
+
+currentListData.forEach((song, index) => {
+  videoIds.push(song.id);
+  const tr = document.createElement("tr");
+  tr.innerHTML = `<td>${song.title}</td>`;
+  tr.onclick = () => playByIndex(index);
+  table.appendChild(tr);
+});
+
+/* 5. 유튜브 API 관련 */
+var player;
+
+function onYouTubeIframeAPIReady() {
+  player = new YT.Player("player", {
+    videoId: videoIds[0],
+    playerVars: { 
+      rel: 0, 
+      playsinline: 1,
+      autoplay: 0 
+    },
+    events: { 
+      onReady: onPlayerReady,
+      onStateChange: onStateChange 
+    }
+  });
+}
+
+function onPlayerReady() {
+  setActiveRow(0);
+}
+
+function playByIndex(index) {
+  currentIndex = index;
+  player.loadVideoById(videoIds[currentIndex]);
+  setActiveRow(index);
+}
+
+function playPrev() {
+  currentIndex = (currentIndex - 1 + videoIds.length) % videoIds.length;
+  playByIndex(currentIndex);
+}
+
+function playNext() {
+  currentIndex = (currentIndex + 1) % videoIds.length;
+  playByIndex(currentIndex);
+}
+
+function togglePlayPause() {
+  const state = player.getPlayerState();
+  if (state === YT.PlayerState.PLAYING) {
+    player.pauseVideo();
+  } else {
+    player.playVideo();
+  }
+}
+
+function onStateChange(e) {
+  if (e.data === YT.PlayerState.ENDED) {
+    playNext();
+  }
+  updatePlayPauseButton();
+}
+
+function updatePlayPauseButton() {
+  const btn = document.getElementById("btnPlayPause");
+  if (!player) return;
+  const state = player.getPlayerState();
+  btn.textContent = state === YT.PlayerState.PLAYING ? "⏸ 일시정지" : "▶ 재생";
+}
+
+function setActiveRow(index) {
+  const rows = document.querySelectorAll("#playlist tr");
+  rows.forEach((tr, i) => {
+    tr.classList.toggle("active", i === index);
+  });
+}
+
+/* 버튼 이벤트 연결 */
+document.getElementById("btnPrev").addEventListener("click", playPrev);
+document.getElementById("btnNext").addEventListener("click", playNext);
+document.getElementById("btnPlayPause").addEventListener("click", togglePlayPause);
+</script>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+
+</body>
+</html>
